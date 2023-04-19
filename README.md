@@ -1,0 +1,2 @@
+# miniprojek
+ miniprojek altera golang
