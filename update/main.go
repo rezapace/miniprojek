@@ -34,10 +34,10 @@ type LoginForm struct {
 }
 
 type RegisterForm struct {
-	Name     string `json:"name" form:"name" validate:"required"`
-	Email    string `json:"email" form:"email" validate:"required,email"`
-	Password string `json:"password" form:"password" validate:"required,min=8"`
-	Role     string `json:"userrole" form:"userrole" validate:"required"`
+	Name     string `json:"name" validate:"required"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required"`
+	Role     string `json:"role" validate:"required"`
 }
 
 type Food struct {
@@ -211,7 +211,7 @@ func main() {
 	// Food routes
 	// ! GET daftar makanan
 	e.GET("/foods", func(c echo.Context) error {
-		rows, err := db.Query("SELECTid, name, description, price FROM food")
+		rows, err := db.Query("SELECT id, name, description, price FROM food")
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, Response{
 				Status:  "error",
@@ -219,6 +219,7 @@ func main() {
 			})
 		}
 		defer rows.Close()
+
 		foods := []Food{}
 		for rows.Next() {
 			var food Food
@@ -230,6 +231,7 @@ func main() {
 			}
 			foods = append(foods, food)
 		}
+
 		return c.JSON(http.StatusOK, FoodListResponse{
 			Status: "success",
 			Data:   foods,
