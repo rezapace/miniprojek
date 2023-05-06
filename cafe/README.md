@@ -1,2 +1,2 @@
-# Mini-Project-PongPedia
+# Mini-Project-cafe
 Mini Project Alterra Academy
