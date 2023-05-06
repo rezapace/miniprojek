@@ -65,3 +65,16 @@ func DeleteFood(db *sql.DB, id int) error {
 
 	return nil
 }
+
+func GetFoodById(db *sql.DB, id int) (*Food, error) {
+	var food Food
+	err := db.QueryRow("SELECT id, name, description, price FROM foods WHERE id = ?", id).Scan(&food.ID, &food.Name, &food.Description, &food.Price)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Food not found, return nil food and no error
+		}
+		return nil, err // Return nil food and the error
+	}
+
+	return &food, nil // Return the food and no error
+}

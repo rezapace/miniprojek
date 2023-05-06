@@ -3,8 +3,14 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"sync"
 
 	_ "github.com/go-sql-driver/mysql"
+)
+
+var (
+	dbInstance *DB
+	once       sync.Once
 )
 
 type DB struct {
@@ -27,6 +33,17 @@ func NewDB(username, password, host, port, dbname string) (*DB, error) {
 	}
 
 	return db, nil
+}
+
+func DBInstance(dbName string) *DB {
+	once.Do(func() {
+		db, err := NewDB("root", "", "localhost", "3306", dbName)
+		if err != nil {
+			panic(err)
+		}
+		dbInstance = db
+	})
+	return dbInstance
 }
 
 func (db *DB) Close() error {

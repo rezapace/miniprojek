@@ -2,11 +2,11 @@ package controllers
 
 import (
 	"database/sql"
+	"fmt"
+	"main/config"
 	"net/http"
 	"strconv"
 
-	"cafe/constants"
-	"cafe/lib/database"
 	"cafe/models"
 
 	"github.com/labstack/echo/v4"
@@ -15,7 +15,10 @@ import (
 // GetUsers returns all users
 func GetUsers(c echo.Context) error {
 	// Get database connection
-	db := database.DBInstance(constants.DB_Name)
+	dbConfig := config.LoadConfig()
+	connStr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", dbConfig.DB_Username, dbConfig.DB_Password, dbConfig.DB_Host, dbConfig.DB_Port, dbConfig.DB_Name)
+
+	db, err := sql.Open("mysql", connStr)
 	defer db.Close()
 
 	// Query all users
@@ -52,9 +55,12 @@ func GetUsers(c echo.Context) error {
 }
 
 // GetUser returns a user based on ID
-func GetUser(c echo.Context) error {
+func GetUserById(c echo.Context) error {
 	// Get database connection
-	db := database.DBInstance(constants.DBName)
+	dbConfig := config.LoadConfig()
+	connStr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", dbConfig.DB_Username, dbConfig.DB_Password, dbConfig.DB_Host, dbConfig.DB_Port, dbConfig.DB_Name)
+
+	db, err := sql.Open("mysql", connStr)
 	defer db.Close()
 
 	// Get ID parameter from URL
@@ -92,7 +98,10 @@ func GetUser(c echo.Context) error {
 // CreateUser creates a new user
 func CreateUser(c echo.Context) error {
 	// Get database connection
-	db := database.DBInstance(constants.DBName)
+	dbConfig := config.LoadConfig()
+	connStr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", dbConfig.DB_Username, dbConfig.DB_Password, dbConfig.DB_Host, dbConfig.DB_Port, dbConfig.DB_Name)
+
+	db, err := sql.Open("mysql", connStr)
 	defer db.Close()
 
 	// Bind request body to UserForm struct

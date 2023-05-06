@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"cafe/lib/database"
 	"cafe/models"
 	"database/sql"
 	"fmt"
@@ -19,7 +18,12 @@ func GetOrders(c echo.Context) error {
 	connStr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", dbConfig.DB_Username, dbConfig.DB_Password, dbConfig.DB_Host, dbConfig.DB_Port, dbConfig.DB_Name)
 
 	db, err := sql.Open("mysql", connStr)
-
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, models.Response{
+			Status:  "error",
+			Message: "Failed to connect to database",
+		})
+	}
 	defer db.Close()
 
 	rows, err := db.Query("SELECT id, user_id, total_price, status FROM orders")
@@ -67,7 +71,12 @@ func GetOrder(c echo.Context) error {
 	connStr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", dbConfig.DB_Username, dbConfig.DB_Password, dbConfig.DB_Host, dbConfig.DB_Port, dbConfig.DB_Name)
 
 	db, err := sql.Open("mysql", connStr)
-
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, models.Response{
+			Status:  "error",
+			Message: "Failed to connect to database",
+		})
+	}
 	defer db.Close()
 
 	order := models.Order{}
@@ -86,12 +95,26 @@ func GetOrder(c echo.Context) error {
 	}
 
 	// Get order details from database
-	orderDetails := make([]models.OrderDetail, 0)
+	rows, err := db.Query("SELECT id, order_id, food_id, quantity, price FROM order_details WHERE order_id = ?", id)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, models.Response{
 			Status:  "error",
-			Message: "Failed to query database",
+			Message: "Failed to query database for order details",
 		})
+	}
+	defer rows.Close()
+
+	orderDetails := make([]models.OrderDetail, 0)
+	for rows.Next() {
+		orderDetail := models.OrderDetail{}
+		err := rows.Scan(&orderDetail.ID, &orderDetail.OrderID, &orderDetail.FoodID, &orderDetail.Quantity, &orderDetail.Price)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, models.Response{
+				Status:  "error",
+				Message: "Failed to scan row for order details",
+			})
+		}
+		orderDetails = append(orderDetails, orderDetail)
 	}
 
 	order.Details = orderDetails
@@ -117,23 +140,16 @@ func CreateOrder(c echo.Context) error {
 		})
 	}
 	// Get database connection
-	db := database.DBInstance(config.LoadConfig().DB_Name)
-	defer db.Close()
-
-	// Check if user exists
-	user, err := models.GetUserById(db, form.UserID)
+	dbConfig := config.LoadConfig()
+	connStr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", dbConfig.DB_Username, dbConfig.DB_Password, dbConfig.DB_Host, dbConfig.DB_Port, dbConfig.DB_Name)
+	db, err := sql.Open("mysql", connStr)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, models.Response{
 			Status:  "error",
-			Message: "Failed to get user from database",
+			Message: "Failed to connect to database",
 		})
 	}
-	if user == nil {
-		return c.JSON(http.StatusBadRequest, models.Response{
-			Status:  "error",
-			Message: "User does not exist",
-		})
-	}
+	defer db.Close()
 
 	// Check if user exists
 	user, err := models.GetUserById(db, form.UserID)

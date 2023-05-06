@@ -1,5 +1,7 @@
 package models
 
+import "database/sql"
+
 type Order struct {
 	ID         int           `json:"id"`
 	UserID     int           `json:"user_id"`
@@ -17,10 +19,18 @@ type OrderForm struct {
 	Status   string  `json:"status" validate:"required,oneof=proses selesai"`
 }
 
-type OrderDetail struct {
-	ID       int     `json:"id"`
-	OrderID  int     `json:"order_id"`
-	FoodID   int     `json:"food_id"`
-	Quantity int     `json:"quantity"`
-	Price    float64 `json:"price"`
+func CreateOrderInDB(tx *sql.Tx, order *Order) error {
+	query := "INSERT INTO orders (user_id, total_price, status) VALUES (?, ?, ?)"
+	result, err := tx.Exec(query, order.UserID, order.TotalPrice, order.Status)
+	if err != nil {
+		return err
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
+
+	order.ID = int(id)
+	return nil
 }
