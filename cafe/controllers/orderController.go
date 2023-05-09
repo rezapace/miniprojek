@@ -2,61 +2,44 @@ package controllers
 
 import (
 	"cafe/models"
-	"database/sql"
 	"fmt"
 	"main/config"
 	"net/http"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 )
 
 // GetOrders will retrieve all orders from database
 func GetOrders(c echo.Context) error {
 	// Get orders from database
 	dbConfig := config.LoadConfig()
-	connStr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", dbConfig.DB_Username, dbConfig.DB_Password, dbConfig.DB_Host, dbConfig.DB_Port, dbConfig.DB_Name)
-
-	db, err := sql.Open("mysql", connStr)
+	connStr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", dbConfig.DB_Username, dbConfig.DB_Password, dbConfig.DB_Host, dbConfig.DB_Port, dbConfig.DB_Name)
+	db, err := gorm.Open(mysql.Open(connStr), &gorm.Config{})
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, models.Response{
 			Status:  "error",
 			Message: "Failed to connect to database",
 		})
 	}
-	defer db.Close()
-
-	rows, err := db.Query("SELECT id, user_id, total_price, status FROM orders")
-	if err != nil {
+	var orders []models.Order
+	result := db.Preload("Details").Find(&orders)
+	if result.Error != nil {
 		return c.JSON(http.StatusInternalServerError, models.Response{
 			Status:  "error",
 			Message: "Failed to query database",
 		})
 	}
-	defer rows.Close()
-
-	// Map query result to orders slice
-	orders := make([]models.Order, 0)
-	for rows.Next() {
-		order := models.Order{}
-		err := rows.Scan(&order.ID, &order.UserID, &order.TotalPrice, &order.Status)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, models.Response{
-				Status:  "error",
-				Message: "Failed to scan row",
-			})
-		}
-		orders = append(orders, order)
-	}
-
 	return c.JSON(http.StatusOK, models.Response{
 		Status: "success",
 		Data:   orders,
 	})
 }
 
-// GetOrder will retrieve order from database by given ID
-func GetOrder(c echo.Context) error {
+// GetOrderById will retrieve order from database by given ID
+func GetOrderById(c echo.Context) error {
 	// Get order ID from request URL
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -65,24 +48,20 @@ func GetOrder(c echo.Context) error {
 			Message: "Invalid order ID",
 		})
 	}
-
 	// Get order from database
 	dbConfig := config.LoadConfig()
-	connStr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", dbConfig.DB_Username, dbConfig.DB_Password, dbConfig.DB_Host, dbConfig.DB_Port, dbConfig.DB_Name)
-
-	db, err := sql.Open("mysql", connStr)
+	connStr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", dbConfig.DB_Username, dbConfig.DB_Password, dbConfig.DB_Host, dbConfig.DB_Port, dbConfig.DB_Name)
+	db, err := gorm.Open(mysql.Open(connStr), &gorm.Config{})
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, models.Response{
 			Status:  "error",
 			Message: "Failed to connect to database",
 		})
 	}
-	defer db.Close()
-
-	order := models.Order{}
-	err = db.QueryRow("SELECT id, user_id, total_price, status FROM orders WHERE id = ?", id).Scan(&order.ID, &order.UserID, &order.TotalPrice, &order.Status)
-	if err != nil {
-		if err == sql.ErrNoRows {
+	var order models.Order
+	result := db.Preload("Details").First(&order, id)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
 			return c.JSON(http.StatusNotFound, models.Response{
 				Status:  "error",
 				Message: "Order not found",
@@ -93,31 +72,6 @@ func GetOrder(c echo.Context) error {
 			Message: "Failed to query database",
 		})
 	}
-
-	// Get order details from database
-	rows, err := db.Query("SELECT id, order_id, food_id, quantity, price FROM order_details WHERE order_id = ?", id)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, models.Response{
-			Status:  "error",
-			Message: "Failed to query database for order details",
-		})
-	}
-	defer rows.Close()
-
-	orderDetails := make([]models.OrderDetail, 0)
-	for rows.Next() {
-		orderDetail := models.OrderDetail{}
-		err := rows.Scan(&orderDetail.ID, &orderDetail.OrderID, &orderDetail.FoodID, &orderDetail.Quantity, &orderDetail.Price)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, models.Response{
-				Status:  "error",
-				Message: "Failed to scan row for order details",
-			})
-		}
-		orderDetails = append(orderDetails, orderDetail)
-	}
-
-	order.Details = orderDetails
 	return c.JSON(http.StatusOK, models.Response{
 		Status: "success",
 		Data:   order,
@@ -141,16 +95,14 @@ func CreateOrder(c echo.Context) error {
 	}
 	// Get database connection
 	dbConfig := config.LoadConfig()
-	connStr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", dbConfig.DB_Username, dbConfig.DB_Password, dbConfig.DB_Host, dbConfig.DB_Port, dbConfig.DB_Name)
-	db, err := sql.Open("mysql", connStr)
+	connStr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", dbConfig.DB_Username, dbConfig.DB_Password, dbConfig.DB_Host, dbConfig.DB_Port, dbConfig.DB_Name)
+	db, err := gorm.Open(mysql.Open(connStr), &gorm.Config{})
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, models.Response{
 			Status:  "error",
 			Message: "Failed to connect to database",
 		})
 	}
-	defer db.Close()
-
 	// Check if user exists
 	user, err := models.GetUserById(db, form.UserID)
 	if err != nil {
@@ -165,7 +117,6 @@ func CreateOrder(c echo.Context) error {
 			Message: "User does not exist",
 		})
 	}
-
 	// Check if food exists
 	food, err := models.GetFoodById(db, form.FoodID)
 	if err != nil {
@@ -180,34 +131,21 @@ func CreateOrder(c echo.Context) error {
 			Message: "Food does not exist",
 		})
 	}
-
 	// Calculate total price
 	total := form.Price * float64(form.Quantity)
-
-	// Begin database transaction
-	tx, err := db.Begin()
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, models.Response{
-			Status:  "error",
-			Message: "Failed to begin database transaction",
-		})
-	}
-
 	// Create new order
 	order := &models.Order{
 		UserID:     form.UserID,
 		TotalPrice: total,
 		Status:     form.Status,
 	}
-	err = models.CreateOrderInDB(tx, order)
+	err = models.CreateOrderInDB(db, order)
 	if err != nil {
-		tx.Rollback()
 		return c.JSON(http.StatusInternalServerError, models.Response{
 			Status:  "error",
 			Message: "Failed to create new order in database",
 		})
 	}
-
 	// Create new order detail
 	orderDetail := &models.OrderDetail{
 		OrderID:  order.ID,
@@ -215,24 +153,13 @@ func CreateOrder(c echo.Context) error {
 		Quantity: form.Quantity,
 		Price:    form.Price,
 	}
-	err = models.CreateOrderDetailInDB(tx, orderDetail)
+	err = models.CreateOrderDetailInDB(db, orderDetail)
 	if err != nil {
-		tx.Rollback()
 		return c.JSON(http.StatusInternalServerError, models.Response{
 			Status:  "error",
 			Message: "Failed to create new order detail in database",
 		})
 	}
-
-	// Commit database transaction
-	err = tx.Commit()
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, models.Response{
-			Status:  "error",
-			Message: "Failed to commit database transaction",
-		})
-	}
-
 	// Return success response
 	return c.JSON(http.StatusOK, models.Response{
 		Status:  "success",

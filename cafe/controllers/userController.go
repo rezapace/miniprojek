@@ -1,8 +1,6 @@
 package controllers
 
 import (
-	"database/sql"
-	"fmt"
 	"main/config"
 	"net/http"
 	"strconv"
@@ -10,60 +8,51 @@ import (
 	"cafe/models"
 
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
 // GetUsers returns all users
 func GetUsers(c echo.Context) error {
-	// Get database connection
-	dbConfig := config.LoadConfig()
-	connStr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", dbConfig.DB_Username, dbConfig.DB_Password, dbConfig.DB_Host, dbConfig.DB_Port, dbConfig.DB_Name)
-
-	db, err := sql.Open("mysql", connStr)
-	defer db.Close()
-
-	// Query all users
-	rows, err := db.Query("SELECT id, name, email FROM users")
+	cfg := config.LoadConfig()
+	db, err := config.ConnectToDB(cfg)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, models.Response{
+			Status:  "error",
+			Message: "Failed to connect to database",
+		})
+	}
+	defer func(db *gorm.DB) {
+		sqlDB, _ := db.DB()
+		sqlDB.Close()
+	}(db)
+	var users []models.User
+	err = db.Select("id", "name", "email").Find(&users).Error
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, models.Response{
 			Status:  "error",
 			Message: "Failed to query database",
 		})
 	}
-	defer rows.Close()
-
-	// Create slice to store users
-	var users []models.User
-
-	// Loop through rows and append to slice
-	for rows.Next() {
-		var user models.User
-		err := rows.Scan(&user.ID, &user.Name, &user.Email)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, models.Response{
-				Status:  "error",
-				Message: "Failed to scan rows",
-			})
-		}
-		users = append(users, user)
-	}
-
-	// Return success response with users data
 	return c.JSON(http.StatusOK, models.Response{
 		Status: "success",
 		Data:   users,
 	})
 }
 
-// GetUser returns a user based on ID
+// GetUserById returns a user based on ID
 func GetUserById(c echo.Context) error {
-	// Get database connection
-	dbConfig := config.LoadConfig()
-	connStr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", dbConfig.DB_Username, dbConfig.DB_Password, dbConfig.DB_Host, dbConfig.DB_Port, dbConfig.DB_Name)
-
-	db, err := sql.Open("mysql", connStr)
-	defer db.Close()
-
-	// Get ID parameter from URL
+	cfg := config.LoadConfig()
+	db, err := config.ConnectToDB(cfg)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, models.Response{
+			Status:  "error",
+			Message: "Failed to connect to database",
+		})
+	}
+	defer func(db *gorm.DB) {
+		sqlDB, _ := db.DB()
+		sqlDB.Close()
+	}(db)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, models.Response{
@@ -71,12 +60,10 @@ func GetUserById(c echo.Context) error {
 			Message: "Invalid user ID",
 		})
 	}
-
-	// Query user with specified ID
 	var user models.User
-	err = db.QueryRow("SELECT id, name, email FROM users WHERE id = ?", id).Scan(&user.ID, &user.Name, &user.Email)
+	err = db.First(&user, id).Error
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == gorm.ErrRecordNotFound {
 			return c.JSON(http.StatusNotFound, models.Response{
 				Status:  "error",
 				Message: "User not found",
@@ -87,8 +74,6 @@ func GetUserById(c echo.Context) error {
 			Message: "Failed to query database",
 		})
 	}
-
-	// Return success response with user data
 	return c.JSON(http.StatusOK, models.Response{
 		Status: "success",
 		Data:   user,
@@ -97,59 +82,38 @@ func GetUserById(c echo.Context) error {
 
 // CreateUser creates a new user
 func CreateUser(c echo.Context) error {
-	// Get database connection
-	dbConfig := config.LoadConfig()
-	connStr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", dbConfig.DB_Username, dbConfig.DB_Password, dbConfig.DB_Host, dbConfig.DB_Port, dbConfig.DB_Name)
-
-	db, err := sql.Open("mysql", connStr)
-	defer db.Close()
-
-	// Bind request body to UserForm struct
-	var form models.UserForm
+	cfg := config.LoadConfig()
+	db, err := config.ConnectToDB(cfg)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, models.Response{
+			Status:  "error",
+			Message: "Failed to connect to database",
+		})
+	}
+	defer func(db *gorm.DB) {
+		sqlDB, _ := db.DB()
+		sqlDB.Close()
+	}(db)
+	var form models.User
 	if err := c.Bind(&form); err != nil {
 		return c.JSON(http.StatusBadRequest, models.Response{
 			Status:  "error",
 			Message: "Invalid request body",
 		})
 	}
-
-	// Validate request body using UserFormValidator
-	if err := c.Validate(&form); err != nil {
-		return c.JSON(http.StatusBadRequest, models.Response{
-			Status:  "error",
-			Message: err.Error(),
-		})
+	newUser := models.User{
+		Name:     form.Name,
+		Email:    form.Email,
+		Password: form.Password,
+		Userrole: form.Userrole,
 	}
-
-	// Insert new user
-	result, err := db.Exec("INSERT INTO users (name, email, password) VALUES (?, ?, ?)", form.Name, form.Email, form.Password)
+	err = db.Create(&newUser).Error
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, models.Response{
 			Status:  "error",
 			Message: "Failed to insert new user into database",
 		})
 	}
-
-	// Get the last inserted user ID
-	userID, err := result.LastInsertId()
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, models.Response{
-			Status:  "error",
-			Message: "Failed to get the last inserted user ID",
-		})
-	}
-
-	// Retrieve the newly created user from database
-	var newUser models.User
-	err = db.QueryRow("SELECT id, name, email FROM users WHERE id = ?", userID).Scan(&newUser.ID, &newUser.Name, &newUser.Email)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, models.Response{
-			Status:  "error",
-			Message: "Failed to query database",
-		})
-	}
-
-	// Return success response with the newly created user data
 	return c.JSON(http.StatusOK, models.Response{
 		Status: "success",
 		Data:   newUser,

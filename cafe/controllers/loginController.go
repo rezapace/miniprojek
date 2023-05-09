@@ -1,61 +1,41 @@
 package controllers
 
 import (
+	"cafe/config"
 	"cafe/constants"
-	"cafe/lib/database"
 	"cafe/models"
-	"database/sql"
-	"main/config"
 	"net/http"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
-type LoginResponse struct {
-	Status  string `json:"status"`
-	Message string `json:"message"`
-	Token   string `json:"token"`
-}
-
-type LoginCredentials struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required"`
-}
-
 func Login(c echo.Context) error {
-	var credentials LoginCredentials
+	var credentials models.LoginCredentials
 	if err := c.Bind(&credentials); err != nil {
 		return c.JSON(http.StatusBadRequest, models.Response{
 			Status:  constants.ErrorStatus,
 			Message: "Invalid request body",
 		})
 	}
-
-	if err := c.Validate(&credentials); err != nil {
-		return c.JSON(http.StatusBadRequest, models.Response{
-			Status:  constants.ErrorStatus,
-			Message: err.Error(),
-		})
-	}
-
-	// Connect to database
-	config := config.LoadConfig()
-	db, err := database.NewDB(config.DB_Username, config.DB_Password, config.DB_Host, config.DB_Port, config.DB_Name)
+	cfg := config.LoadConfig()
+	db, err := config.ConnectToDB(cfg)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, models.Response{
 			Status:  constants.ErrorStatus,
 			Message: "Failed to connect to database",
 		})
 	}
-	defer db.Close()
-
+	defer func(db *gorm.DB) {
+		sqlDB, _ := db.DB()
+		sqlDB.Close()
+	}(db)
 	var user models.User
-	row := db.Conn.QueryRow("SELECT * FROM users WHERE email = ? AND password = ?", credentials.Email, credentials.Password)
-	err = row.Scan(&user.ID, &user.Name, &user.Email, &user.Password, &user.Role)
+	err = db.Where("email = ? AND password = ?", credentials.Email, credentials.Password).First(&user).Error
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == gorm.ErrRecordNotFound {
 			return c.JSON(http.StatusBadRequest, models.Response{
 				Status:  constants.ErrorStatus,
 				Message: "Invalid email or password",
@@ -67,14 +47,13 @@ func Login(c echo.Context) error {
 			})
 		}
 	}
-
 	// Create token
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
 	claims["id"] = user.ID
 	claims["name"] = user.Name
 	claims["email"] = user.Email
-	claims["role"] = user.Role
+	claims["userrole"] = user.Userrole
 	claims["exp"] = time.Now().Add(time.Hour * 72).Unix()
 	tokenString, err := token.SignedString([]byte(constants.JWTSecret))
 	if err != nil {
@@ -83,8 +62,7 @@ func Login(c echo.Context) error {
 			Message: "Failed to create token",
 		})
 	}
-
-	return c.JSON(http.StatusOK, LoginResponse{
+	return c.JSON(http.StatusOK, models.LoginResponse{
 		Status:  constants.SuccessStatus,
 		Message: "Login success",
 		Token:   tokenString,

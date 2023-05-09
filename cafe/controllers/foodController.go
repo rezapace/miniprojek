@@ -1,57 +1,160 @@
 package controllers
 
 import (
-	"database/sql"
+	"cafe/models"
+	"fmt"
 	"net/http"
 	"strconv"
 
-	"cafe/models"
-
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
-type FoodController struct {
-	DB *sql.DB
-}
-
-func (ctrl *FoodController) CreateFood(c echo.Context) error {
-	var foodForm models.FoodForm
-	if err := c.Bind(&foodForm); err != nil {
-		return c.JSON(http.StatusBadRequest, models.Response{
-			Status:  "error",
-			Message: "Invalid request body",
+// GetFoods returns all foods
+func GetFoods(c echo.Context) error {
+	db := c.Get("db").(*gorm.DB)
+	var foods []models.Food
+	if err := db.Find(&foods).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{
+			"status":  "error",
+			"message": "Failed to retrieve foods from database",
 		})
 	}
-
-	if err := c.Validate(&foodForm); err != nil {
-		return c.JSON(http.StatusBadRequest, models.Response{
-			Status:  "error",
-			Message: err.Error(),
-		})
-	}
-
-	food := models.Food{
-		Name:        foodForm.Name,
-		Description: foodForm.Description,
-		Price:       foodForm.Price,
-	}
-
-	err := food.Insert(ctrl.DB)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, models.Response{
-			Status:  "error",
-			Message: "Failed to insert food into database",
-		})
-	}
-
-	return c.JSON(http.StatusCreated, models.Response{
-		Status:  "success",
-		Message: "Food has been created",
-		Data:    food,
+	return c.JSON(http.StatusOK, echo.Map{
+		"status": "success",
+		"data":   foods,
 	})
 }
 
-func (ctrl *FoodController) GetFood(c echo.Context) error {
+// GetFood returns a single food item by ID
+func GetFood(c echo.Context) error {
+	db := c.Get("db").(*gorm.DB)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{
+			"status":  "error",
+			"message": "Invalid food ID",
+		})
+	}
+	food, err := models.GetFoodById(db, uint(id))
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{
+			"status":  "error",
+			"message": "Failed to retrieve food from database",
+		})
+	}
+	if food == nil {
+		return c.JSON(http.StatusNotFound, echo.Map{
+			"status":  "error",
+			"message": "Food not found",
+		})
+	}
+	return c.JSON(http.StatusOK, echo.Map{
+		"status": "success",
+		"data":   food,
+	})
+}
+
+// CreateFood creates a new food item
+func CreateFood(c echo.Context) error {
+	db := c.Get("db").(*gorm.DB)
+	food := new(models.Food)
+	if err := c.Bind(food); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{
+			"status":  "error",
+			"message": "Invalid request body",
+		})
+	}
+	if err := models.CreateFoodInDB(db, food); err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{
+			"status":  "error",
+			"message": "Failed to create food in database",
+		})
+	}
+	return c.JSON(http.StatusCreated, echo.Map{
+		"status": "success",
+		"data":   food,
+	})
+}
+
+// UpdateFood updates a food item by ID
+func UpdateFood(c echo.Context) error {
+	db := c.Get("db").(*gorm.DB)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{
+			"status":  "error",
+			"message": "Invalid food ID",
+		})
+	}
+	food, err := models.GetFoodById(db, uint(id))
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{
+			"status":  "error",
+			"message": "Failed to retrieve food from database",
+		})
+	}
+	if food == nil {
+		return c.JSON(http.StatusNotFound, echo.Map{
+			"status":  "error",
+			"message": "Food not found",
+		})
+	}
+	if err := c.Bind(food); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{
+			"status":  "error",
+			"message": "Invalid request body",
+		})
+	}
+	if err := models.UpdateFoodInDB(db, food); err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{
+			"status":  "error",
+			"message": "Failed to update food in database",
+		})
+	}
+	return c.JSON(http.StatusOK, echo.Map{
+		"status": "success",
+		"data":   food,
+	})
+}
+
+// DeleteFood deletes a food item by ID
+func DeleteFood(c echo.Context) error {
+	db := c.Get("db").(*gorm.DB)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{
+			"status":  "error",
+			"message": "Invalid food ID",
+		})
+	}
+	food, err := models.GetFoodById(db, uint(id))
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{
+			"status":  "error",
+			"message": "Failed to retrieve food from database",
+		})
+	}
+	if food == nil {
+		return c.JSON(http.StatusNotFound, echo.Map{
+			"status":  "error",
+			"message": "Food not found",
+		})
+	}
+	if err := models.DeleteFoodInDB(db, id); err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{
+			"status":  "error",
+			"message": "Failed to delete food in database",
+		})
+	}
+	return c.JSON(http.StatusOK, echo.Map{
+		"status":  "success",
+		"message": fmt.Sprintf("Food with ID %d has been deleted", id),
+	})
+}
+
+// GetFoodById function to get food by ID
+func GetFoodById(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, models.Response{
@@ -59,93 +162,22 @@ func (ctrl *FoodController) GetFood(c echo.Context) error {
 			Message: "Invalid food ID",
 		})
 	}
-
-	food, err := models.GetFoodByID(ctrl.DB, id)
+	db := c.Get("db").(*gorm.DB)                  // Get GORM db instance from context
+	food, err := models.GetFoodById(db, uint(id)) // Convert id to uint
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return c.JSON(http.StatusNotFound, models.Response{
-				Status:  "error",
-				Message: "Food not found",
-			})
-		} else {
-			return c.JSON(http.StatusInternalServerError, models.Response{
-				Status:  "error",
-				Message: "Failed to query database",
-			})
-		}
+		return c.JSON(http.StatusInternalServerError, models.Response{
+			Status:  "error",
+			Message: "Failed to get food from database",
+		})
 	}
-
+	if food == nil {
+		return c.JSON(http.StatusNotFound, models.Response{
+			Status:  "error",
+			Message: "Food not found",
+		})
+	}
 	return c.JSON(http.StatusOK, models.Response{
 		Status: "success",
 		Data:   food,
-	})
-}
-
-func (ctrl *FoodController) UpdateFood(c echo.Context) error {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, models.Response{
-			Status:  "error",
-			Message: "Invalid food ID",
-		})
-	}
-
-	var foodForm models.FoodForm
-	if err := c.Bind(&foodForm); err != nil {
-		return c.JSON(http.StatusBadRequest, models.Response{
-			Status:  "error",
-			Message: "Invalid request body",
-		})
-	}
-
-	if err := c.Validate(&foodForm); err != nil {
-		return c.JSON(http.StatusBadRequest, models.Response{
-			Status:  "error",
-			Message: err.Error(),
-		})
-	}
-
-	food := models.Food{
-		ID:          id,
-		Name:        foodForm.Name,
-		Description: foodForm.Description,
-		Price:       foodForm.Price,
-	}
-
-	err = food.Update(ctrl.DB)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, models.Response{
-			Status:  "error",
-			Message: "Failed to update food in database",
-		})
-	}
-
-	return c.JSON(http.StatusOK, models.Response{
-		Status:  "success",
-		Message: "Food has been updated",
-		Data:    food,
-	})
-}
-
-func (ctrl *FoodController) DeleteFood(c echo.Context) error {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, models.Response{
-			Status:  "error",
-			Message: "Invalid food ID",
-		})
-	}
-
-	err = models.DeleteFood(ctrl.DB, id)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, models.Response{
-			Status:  "error",
-			Message: "Failed to delete food from database",
-		})
-	}
-
-	return c.JSON(http.StatusOK, models.Response{
-		Status:  "success",
-		Message: "Food has been deleted",
 	})
 }
