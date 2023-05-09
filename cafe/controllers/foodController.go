@@ -10,11 +10,11 @@ import (
 	"gorm.io/gorm"
 )
 
-// GetFoods returns all foods
+// GetFoods returns all food items
 func GetFoods(c echo.Context) error {
 	db := c.Get("db").(*gorm.DB)
-	var foods []models.Food
-	if err := db.Find(&foods).Error; err != nil {
+	foods, err := models.GetFood(db)
+	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{
 			"status":  "error",
 			"message": "Failed to retrieve foods from database",
@@ -23,35 +23,6 @@ func GetFoods(c echo.Context) error {
 	return c.JSON(http.StatusOK, echo.Map{
 		"status": "success",
 		"data":   foods,
-	})
-}
-
-// GetFood returns a single food item by ID
-func GetFood(c echo.Context) error {
-	db := c.Get("db").(*gorm.DB)
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{
-			"status":  "error",
-			"message": "Invalid food ID",
-		})
-	}
-	food, err := models.GetFoodById(db, uint(id))
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, echo.Map{
-			"status":  "error",
-			"message": "Failed to retrieve food from database",
-		})
-	}
-	if food == nil {
-		return c.JSON(http.StatusNotFound, echo.Map{
-			"status":  "error",
-			"message": "Food not found",
-		})
-	}
-	return c.JSON(http.StatusOK, echo.Map{
-		"status": "success",
-		"data":   food,
 	})
 }
 

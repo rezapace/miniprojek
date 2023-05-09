@@ -1,7 +1,6 @@
 package config
 
 import (
-	"cafe/models"
 	"fmt"
 
 	"gorm.io/driver/mysql"
@@ -35,13 +34,6 @@ func ConnectToDB(config *Config) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// auto migrate the models
-	db.AutoMigrate(&models.Food{})
-	db.AutoMigrate(&models.Order{})
-	db.AutoMigrate(&models.OrderDetail{})
-	db.AutoMigrate(&models.Response{})
-	db.AutoMigrate(&models.User{})
 
 	return db, nil
 }

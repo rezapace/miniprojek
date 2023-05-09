@@ -5,11 +5,19 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"gorm.io/gorm"
 )
 
-func New() *echo.Echo {
-	e := echo.New()
+func DBMiddleware(db *gorm.DB) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			c.Set("db", db)
+			return next(c)
+		}
+	}
+}
 
+func RegisterRoutes(e *echo.Echo) {
 	// Middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
@@ -29,14 +37,8 @@ func New() *echo.Echo {
 	// Routes for orders
 	e.GET("/orders", controllers.GetOrders)
 	e.GET("/orders/:id", controllers.GetOrderById)
-
-	// Routes for orders
-	e.GET("/orders", controllers.GetOrders)
-	e.GET("/orders/:id", controllers.GetOrderById)
 	e.POST("/orders", controllers.CreateOrder)
 
 	// Route for login
 	e.POST("/login", controllers.Login)
-
-	return e
 }

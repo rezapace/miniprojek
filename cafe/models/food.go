@@ -11,6 +11,16 @@ type Food struct {
 	Price       float64 `json:"price"`
 }
 
+// todos GetFood
+func GetFood(db *gorm.DB) ([]*Food, error) {
+	foods := []*Food{}
+	result := db.Find(&foods)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return foods, nil
+}
+
 // todo GetfoodById
 func GetFoodById(db *gorm.DB, id uint) (*Food, error) {
 	food := &Food{}
