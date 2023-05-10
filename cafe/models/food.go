@@ -1,8 +1,6 @@
 package models
 
-import (
-	"gorm.io/gorm"
-)
+import "gorm.io/gorm"
 
 type Food struct {
 	gorm.Model
@@ -11,9 +9,9 @@ type Food struct {
 	Price       float64 `json:"price"`
 }
 
-// todos GetFood
-func GetFood(db *gorm.DB) ([]*Food, error) {
-	foods := []*Food{}
+// GetFoods mengembalikan daftar makanan yang tersedia di database.
+func GetFoods(db *gorm.DB) ([]Food, error) {
+	var foods []Food
 	result := db.Find(&foods)
 	if result.Error != nil {
 		return nil, result.Error
@@ -21,8 +19,8 @@ func GetFood(db *gorm.DB) ([]*Food, error) {
 	return foods, nil
 }
 
-// todo GetfoodById
-func GetFoodById(db *gorm.DB, id uint) (*Food, error) {
+// GetFoodByID mengembalikan makanan dengan ID yang diberikan dari database.
+func GetFoodByID(db *gorm.DB, id uint) (*Food, error) {
 	food := &Food{}
 	result := db.First(food, id)
 	if result.Error != nil {
@@ -34,8 +32,8 @@ func GetFoodById(db *gorm.DB, id uint) (*Food, error) {
 	return food, nil
 }
 
-// todo GetFoodInDB
-func CreateFoodInDB(db *gorm.DB, food *Food) error {
+// CreateFood membuat dan menyimpan makanan baru ke database.
+func CreateFood(db *gorm.DB, food *Food) error {
 	result := db.Create(food)
 	if result.Error != nil {
 		return result.Error
@@ -43,8 +41,8 @@ func CreateFoodInDB(db *gorm.DB, food *Food) error {
 	return nil
 }
 
-// todo UpdateFoodInDB
-func UpdateFoodInDB(db *gorm.DB, food *Food) error {
+// UpdateFood mengubah makanan yang ada di database.
+func UpdateFood(db *gorm.DB, food *Food) error {
 	result := db.Save(food)
 	if result.Error != nil {
 		return result.Error
@@ -55,8 +53,8 @@ func UpdateFoodInDB(db *gorm.DB, food *Food) error {
 	return nil
 }
 
-// todo DeleteFoodInDB
-func DeleteFoodInDB(db *gorm.DB, id int) error {
+// DeleteFood menghapus makanan dengan ID yang diberikan dari database.
+func DeleteFood(db *gorm.DB, id int) error {
 	result := db.Delete(&Food{}, id)
 	if result.Error != nil {
 		return result.Error

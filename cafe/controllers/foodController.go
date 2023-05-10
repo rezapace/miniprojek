@@ -6,147 +6,200 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/golang-jwt/jwt"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
 
-// GetFoods returns all food items
+// TODO:  mengambil semua data food
 func GetFoods(c echo.Context) error {
+	// Mendapatkan koneksi database dari context
 	db := c.Get("db").(*gorm.DB)
-	foods, err := models.GetFood(db)
+	// Mengambil semua data makanan dari database
+	foods, err := models.GetFoods(db)
 	if err != nil {
+		// Jika Gagal mengambil data makanan dari database
 		return c.JSON(http.StatusInternalServerError, echo.Map{
 			"status":  "error",
-			"message": "Failed to retrieve foods from database",
+			"message": "Gagal mengambil makanan dari database",
 		})
 	}
+	// Berhasil mengambil data makanan dari database
 	return c.JSON(http.StatusOK, echo.Map{
 		"status": "success",
 		"data":   foods,
 	})
 }
 
-// CreateFood creates a new food item
+// TODO: menambahkan menu di food
 func CreateFood(c echo.Context) error {
-	db := c.Get("db").(*gorm.DB)
-	food := new(models.Food)
-	if err := c.Bind(food); err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{
+	db := c.Get("db").(*gorm.DB)         // Mendapatkan database dari context
+	food := new(models.Food)             // Membuat variabel baru bertipe models.Food
+	if err := c.Bind(food); err != nil { // Mengecek apakah ada error saat binding data
+		return c.JSON(http.StatusBadRequest, echo.Map{ // Mengembalikan response jika terjadi error
 			"status":  "error",
 			"message": "Invalid request body",
 		})
 	}
-	if err := models.CreateFoodInDB(db, food); err != nil {
-		return c.JSON(http.StatusInternalServerError, echo.Map{
+	// jika gagal membuat menu makanan di database
+	if err := models.CreateFood(db, food); err != nil { // Mencoba membuat menu makanan di database
+		return c.JSON(http.StatusInternalServerError, echo.Map{ // Mengembalikan response jika terjadi error
 			"status":  "error",
 			"message": "Failed to create food in database",
 		})
 	}
-	return c.JSON(http.StatusCreated, echo.Map{
+	// Berhasil membuat menu makanan di database
+	return c.JSON(http.StatusCreated, echo.Map{ // Mengembalikan response jika berhasil membuat menu makanan
 		"status": "success",
 		"data":   food,
 	})
 }
 
-// UpdateFood updates a food item by ID
+// TODO: mengupdate data food
 func UpdateFood(c echo.Context) error {
+	// Mendapatkan database dari context
 	db := c.Get("db").(*gorm.DB)
+	// Mengubah string id menjadi integer
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
+		// Jika gagal mengubah string ke integer, maka return bad request
 		return c.JSON(http.StatusBadRequest, echo.Map{
 			"status":  "error",
 			"message": "Invalid food ID",
 		})
 	}
-	food, err := models.GetFoodById(db, uint(id))
+	// Mendapatkan data makanan berdasarkan id
+	food, err := models.GetFoodByID(db, uint(id))
+
+	// Jika gagal mendapatkan data makanan, maka return internal server error
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{
 			"status":  "error",
 			"message": "Failed to retrieve food from database",
 		})
 	}
+
+	// Jika tidak ada data makanan yang ditemukan, maka return not found
 	if food == nil {
 		return c.JSON(http.StatusNotFound, echo.Map{
 			"status":  "error",
 			"message": "Food not found",
 		})
 	}
+	// Mengikat data makanan dengan request body
+
+	// Jika gagal mengikat data makanan dengan request body, maka return bad request
 	if err := c.Bind(food); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{
 			"status":  "error",
 			"message": "Invalid request body",
 		})
 	}
-	if err := models.UpdateFoodInDB(db, food); err != nil {
+	// Menyimpan data makanan di database
+
+	// Jika gagal menyimpan data makanan di database, maka return internal server error
+	if err := models.UpdateFood(db, food); err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{
 			"status":  "error",
 			"message": "Failed to update food in database",
 		})
 	}
+	// Return status OK dan data makanan
+
 	return c.JSON(http.StatusOK, echo.Map{
 		"status": "success",
 		"data":   food,
 	})
 }
 
-// DeleteFood deletes a food item by ID
+// TODO:  menghapus food by id
 func DeleteFood(c echo.Context) error {
+	// mendapatkan database dari context
 	db := c.Get("db").(*gorm.DB)
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{
+
+	// Mendapatkan informasi user dari JWT token
+	user := c.Get("user").(*jwt.Token)
+	claims := user.Claims.(jwt.MapClaims)
+	userRole := claims["user_role"].(string)
+
+	// Memeriksa apakah userRole adalah "kasir"
+	if userRole != "kasir" {
+		return c.JSON(http.StatusForbidden, echo.Map{
 			"status":  "error",
-			"message": "Invalid food ID",
+			"message": "Hanya kasir yang diizinkan untuk menghapus makanan",
 		})
 	}
-	food, err := models.GetFoodById(db, uint(id))
+
+	// mengubah string ke integer
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		// jika gagal mengubah string ke integer
+		return c.JSON(http.StatusBadRequest, echo.Map{
+			"status":  "error",
+			"message": "ID makanan tidak valid",
+		})
+	}
+
+	// mendapatkan makanan berdasarkan id
+	food, err := models.GetFoodByID(db, uint(id))
+
+	// jika gagal mendapatkan makanan dari database
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{
 			"status":  "error",
-			"message": "Failed to retrieve food from database",
+			"message": "Gagal mengambil makanan dari database",
 		})
 	}
+
+	// jika makanan tidak ditemukan
 	if food == nil {
 		return c.JSON(http.StatusNotFound, echo.Map{
 			"status":  "error",
-			"message": "Food not found",
+			"message": "Makanan tidak ditemukan",
 		})
 	}
-	if err := models.DeleteFoodInDB(db, id); err != nil {
+
+	// jika gagal menghapus makanan dari database menghapus makanan dari database
+	if err := models.DeleteFood(db, id); err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{
 			"status":  "error",
-			"message": "Failed to delete food in database",
+			"message": "Gagal menghapus makanan dari database",
 		})
 	}
+
+	// jika berhasil menghapus makanan
 	return c.JSON(http.StatusOK, echo.Map{
 		"status":  "success",
-		"message": fmt.Sprintf("Food with ID %d has been deleted", id),
+		"message": fmt.Sprintf("Makanan dengan ID %d telah di dihapus", id),
 	})
 }
 
-// GetFoodById function to get food by ID
+// TODO: menampilkan menu food berdasarkan id
 func GetFoodById(c echo.Context) error {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := strconv.Atoi(c.Param("id")) // Mengkonversi string ke integer
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, models.Response{
 			Status:  "error",
-			Message: "Invalid food ID",
+			Message: "ID makanan tidak valid",
 		})
 	}
-	db := c.Get("db").(*gorm.DB)                  // Get GORM db instance from context
-	food, err := models.GetFoodById(db, uint(id)) // Convert id to uint
+	db := c.Get("db").(*gorm.DB)                  // Mendapatkan instance GORM db dari context
+	food, err := models.GetFoodByID(db, uint(id)) // Mengkonversi id ke uint
+	// JIKA GAGAL MENDAPATKAN DATA MAKA KEMBALIKAN RESPONSE ERROR
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, models.Response{
 			Status:  "error",
-			Message: "Failed to get food from database",
+			Message: "Gagal mendapatkan makanan dari database",
 		})
 	}
+	// JIKA DATA TIDAK DITEMUKAN
 	if food == nil {
 		return c.JSON(http.StatusNotFound, models.Response{
 			Status:  "error",
-			Message: "Food not found",
+			Message: "Makanan tidak ditemukan",
 		})
 	}
+	// JIKA DATA DITEMUKAN
 	return c.JSON(http.StatusOK, models.Response{
 		Status: "success",
 		Data:   food,

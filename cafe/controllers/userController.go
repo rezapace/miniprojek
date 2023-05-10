@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"main/config"
 	"net/http"
 	"strconv"
 
@@ -11,111 +10,110 @@ import (
 	"gorm.io/gorm"
 )
 
-// GetUsers returns all users
+// TODO: mengambil semua data user
 func GetUsers(c echo.Context) error {
-	cfg := config.LoadConfig()
-	db, err := config.ConnectToDB(cfg)
+	// Mendapatkan koneksi database dari context
+	db := c.Get("db").(*gorm.DB)
+	// Mengambil semua data user dari database
+	users, err := models.GetUsers(db)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, models.Response{
-			Status:  "error",
-			Message: "Failed to connect to database",
+		// Gagal mengambil data user dari database
+		return c.JSON(http.StatusInternalServerError, echo.Map{
+			"status":  "error",
+			"message": "Gagal mengambil user dari database",
 		})
 	}
-	defer func(db *gorm.DB) {
-		sqlDB, _ := db.DB()
-		sqlDB.Close()
-	}(db)
-	var users []models.User
-	err = db.Select("id", "name", "email").Find(&users).Error
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, models.Response{
-			Status:  "error",
-			Message: "Failed to query database",
-		})
-	}
-	return c.JSON(http.StatusOK, models.Response{
-		Status: "success",
-		Data:   users,
+	// Berhasil mengambil data user dari database
+	return c.JSON(http.StatusOK, echo.Map{
+		"status": "success",
+		"data":   users,
 	})
 }
 
-// GetUserById returns a user based on ID
+// TODO: menampilkan user berdasarkan id
 func GetUserById(c echo.Context) error {
-	cfg := config.LoadConfig()
-	db, err := config.ConnectToDB(cfg)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, models.Response{
-			Status:  "error",
-			Message: "Failed to connect to database",
-		})
-	}
-	defer func(db *gorm.DB) {
-		sqlDB, _ := db.DB()
-		sqlDB.Close()
-	}(db)
+	// Mendapatkan koneksi database dari context
+	db := c.Get("db").(*gorm.DB)
+	// Mengubah string id menjadi integer
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, models.Response{
-			Status:  "error",
-			Message: "Invalid user ID",
+		// Jika gagal mengubah string ke integer, maka return bad request
+		return c.JSON(http.StatusBadRequest, echo.Map{
+			"status":  "error",
+			"message": "ID user tidak valid",
 		})
 	}
-	var user models.User
-	err = db.First(&user, id).Error
+
+	// Mendapatkan data user berdasarkan id
+	user, err := models.GetUserByID(db, uint(id))
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.JSON(http.StatusNotFound, models.Response{
-				Status:  "error",
-				Message: "User not found",
-			})
-		}
-		return c.JSON(http.StatusInternalServerError, models.Response{
-			Status:  "error",
-			Message: "Failed to query database",
+		// Jika gagal mendapatkan data user, maka return internal server error
+		return c.JSON(http.StatusInternalServerError, echo.Map{
+			"status":  "error",
+			"message": "Gagal mendapatkan user dari database",
 		})
 	}
-	return c.JSON(http.StatusOK, models.Response{
-		Status: "success",
-		Data:   user,
+	if user == nil {
+		// Jika tidak ada data user yang ditemukan, maka return not found
+		return c.JSON(http.StatusNotFound, echo.Map{
+			"status":  "error",
+			"message": "User tidak ditemukan",
+		})
+	}
+	// Return status OK dan data user
+	return c.JSON(http.StatusOK, echo.Map{
+		"status": "success",
+		"data":   user,
 	})
 }
 
-// CreateUser creates a new user
+// TODO:  membuat user baru
 func CreateUser(c echo.Context) error {
-	cfg := config.LoadConfig()
-	db, err := config.ConnectToDB(cfg)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, models.Response{
-			Status:  "error",
-			Message: "Failed to connect to database",
+	// Mendapatkan koneksi database dari context
+	db := c.Get("db").(*gorm.DB)
+	// Membuat variabel baru bertipe models.User
+	user := new(models.User)
+	// Mengecek apakah ada error saat binding data
+	if err := c.Bind(user); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{
+			"status":  "error",
+			"message": "Invalid request body",
 		})
 	}
-	defer func(db *gorm.DB) {
-		sqlDB, _ := db.DB()
-		sqlDB.Close()
-	}(db)
-	var form models.User
-	if err := c.Bind(&form); err != nil {
-		return c.JSON(http.StatusBadRequest, models.Response{
-			Status:  "error",
-			Message: "Invalid request body",
+	// Mencoba membuat user baru di database
+	if err := models.CreateUser(db, user); err != nil {
+		// Jika gagal membuat user baru di database, maka return internal server error
+		return c.JSON(http.StatusInternalServerError, echo.Map{
+			"status":  "error",
+			"message": "Failed to create user in database",
 		})
 	}
-	newUser := models.User{
-		Name:     form.Name,
-		Email:    form.Email,
-		Password: form.Password,
-		Userrole: form.Userrole,
-	}
-	err = db.Create(&newUser).Error
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, models.Response{
-			Status:  "error",
-			Message: "Failed to insert new user into database",
+	// Mengembalikan response jika berhasil membuat user baru
+	return c.JSON(http.StatusCreated, echo.Map{
+		"status": "success",
+		"data":   user,
+	})
+}
+
+// TODO: mengupdate user berdasarkan id
+func UpdateUser(c echo.Context) error {
+	//
+	db := c.Get("db").(*gorm.DB)         // Mendapatkan database dari context
+	user := new(models.User)             // Membuat variabel baru bertipe models.User
+	if err := c.Bind(user); err != nil { // Mengecek apakah ada error saat binding data
+		return c.JSON(http.StatusBadRequest, echo.Map{ // Mengembalikan response jika terjadi error
+			"status":  "error",
+			"message": "Invalid request body",
 		})
 	}
-	return c.JSON(http.StatusOK, models.Response{
-		Status: "success",
-		Data:   newUser,
+	if err := models.CreateUser(db, user); err != nil { // Mencoba membuat user baru di database
+		return c.JSON(http.StatusInternalServerError, echo.Map{ // Mengembalikan response jika terjadi error
+			"status":  "error",
+			"message": "Failed to create user in database",
+		})
+	}
+	return c.JSON(http.StatusCreated, echo.Map{ // Mengembalikan response jika berhasil membuat user baru
+		"status": "success",
+		"data":   user,
 	})
 }
