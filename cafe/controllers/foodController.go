@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/golang-jwt/jwt"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
@@ -116,20 +115,6 @@ func UpdateFood(c echo.Context) error {
 func DeleteFood(c echo.Context) error {
 	// mendapatkan database dari context
 	db := c.Get("db").(*gorm.DB)
-
-	// Mendapatkan informasi user dari JWT token
-	user := c.Get("user").(*jwt.Token)
-	claims := user.Claims.(jwt.MapClaims)
-	userRole := claims["user_role"].(string)
-
-	// Memeriksa apakah userRole adalah "kasir"
-	if userRole != "kasir" {
-		return c.JSON(http.StatusForbidden, echo.Map{
-			"status":  "error",
-			"message": "Hanya kasir yang diizinkan untuk menghapus makanan",
-		})
-	}
-
 	// mengubah string ke integer
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -170,7 +155,7 @@ func DeleteFood(c echo.Context) error {
 	// jika berhasil menghapus makanan
 	return c.JSON(http.StatusOK, echo.Map{
 		"status":  "success",
-		"message": fmt.Sprintf("Makanan dengan ID %d telah di dihapus", id),
+		"message": fmt.Sprintf("Makanan dengan ID %d telah dihapus", id),
 	})
 }
 
